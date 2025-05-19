@@ -412,7 +412,7 @@ For the NVIDIA DGX H100 that has 8 H100 GPUs, performing the steps results in th
 
    MIG manager applies a ``mig.config.state`` label to the GPU and then terminates all the GPU pods
    in preparation to enable MIG mode and configure the GPU into the specified configuration.
-   
+
 
 #. Optional: Verify that MIG manager configured the GPUs:
 
@@ -457,7 +457,7 @@ For the NVIDIA DGX H100 that has 8 H100 GPUs, performing the steps results in th
       Resource                Requests      Limits
       nvidia.com/mig-1g.10gb  0             0
       nvidia.com/mig-2g.20gb  0             0
-      nvidia.com/mig-3g.40gb  0             0 
+      nvidia.com/mig-3g.40gb  0             0
 
 
 #. Optional: Start a pod to run the ``nvidia-smi`` command and display the GPU resources.
@@ -500,7 +500,7 @@ For the NVIDIA DGX H100 that has 8 H100 GPUs, performing the steps results in th
          $ oc logs command-nvidia-smi
 
       *Example Output*
-      
+
       .. code-block:: output
 
          +---------------------------------------------------------------------------------------+
@@ -542,7 +542,7 @@ For the NVIDIA DGX H100 that has 8 H100 GPUs, performing the steps results in th
          | N/A   31C    P0              72W / 700W |                  N/A |     N/A      Default |
          |                                         |                      |              Enabled |
          +-----------------------------------------+----------------------+----------------------+
-      
+
          +---------------------------------------------------------------------------------------+
          | MIG devices:                                                                          |
          +------------------+--------------------------------+-----------+-----------------------+
@@ -646,7 +646,7 @@ For the NVIDIA DGX H100 that has 8 H100 GPUs, performing the steps results in th
          |  7   10   0   3  |               5MiB /  9984MiB  | 16      0 |  1   0    1    0    1 |
          |                  |               0MiB / 16383MiB  |           |                       |
          +------------------+--------------------------------+-----------+-----------------------+
-      
+
          +---------------------------------------------------------------------------------------+
          | Processes:                                                                            |
          |  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
@@ -769,7 +769,7 @@ For information about the initial default MIG configuration and viewing it, refe
          $ oc logs command-nvidia-smi
 
       *Example Output*
-      
+
       .. code-block:: output
          :emphasize-lines: 42,47-94
 
@@ -812,7 +812,7 @@ For information about the initial default MIG configuration and viewing it, refe
          | N/A   31C    P0              76W / 700W |                  N/A |     N/A      Default |
          |                                         |                      |              Enabled |
          +-----------------------------------------+----------------------+----------------------+
-      
+
          +---------------------------------------------------------------------------------------+
          | MIG devices:                                                                          |
          +------------------+--------------------------------+-----------+-----------------------+
@@ -868,7 +868,7 @@ For information about the initial default MIG configuration and viewing it, refe
          |  7    2   0   1  |              16MiB / 40448MiB  | 60      0 |  3   0    3    0    3 |
          |                  |               0MiB / 65535MiB  |           |                       |
          +------------------+--------------------------------+-----------+-----------------------+
-      
+
          +---------------------------------------------------------------------------------------+
          | Processes:                                                                            |
          |  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
@@ -1009,3 +1009,13 @@ Resolve this issue by:
    .. code-block:: console
 
       $ oc label node/$NODE_NAME nvidia.com/mig.config=$MIG_CONFIGURATION --overwrite
+
+**********************
+Warning
+**********************
+This code will never work:
+
+.. code-block:: yaml
+
+   hello:
+      gpu-operator: false
