@@ -15,15 +15,15 @@ Introduction
 
 
 There is a growing demand among Red Hat customers to use virtual GPUs (NVIDIA vGPU)
-with Red Hat OpenShift Virtualization. 
-Red Hat OpenShift Virtualization is based on KubeVirt, a virtual machine (VM) management add-on to Kubernetes that allows you to run and manage VMs in a Kubernetes cluster. 
-It eliminates the need to manage separate clusters for VM and container workloads, as both can now coexist in a single Kubernetes cluster. 
+with Red Hat OpenShift Virtualization.
+Red Hat OpenShift Virtualization is based on KubeVirt, a virtual machine (VM) management add-on to Kubernetes that allows you to run and manage VMs in a Kubernetes cluster.
+It eliminates the need to manage separate clusters for VM and container workloads, as both can now coexist in a single Kubernetes cluster.
 Red Hat OpenShift Virtualization is an OpenShift feature to run virtual machines (VMs) orchestrated by OpenShift (Kubernetes).
 
 In addition to the GPU Operator being able to provision worker nodes for running GPU-accelerated containers, the GPU Operator can also be used to provision worker nodes for running GPU-accelerated virtual machines.
 
 There are some different prerequisites required virtual machines with GPU(s) than running containers with GPU(s).
-The primary difference is the drivers required. 
+The primary difference is the drivers required.
 For example, the datacenter driver is needed for containers, the vfio-pci driver is needed for GPU passthrough, and the `NVIDIA vGPU Manager <https://docs.nvidia.com/grid/latest/grid-vgpu-user-guide/index.html#installing-configuring-grid-vgpu>`_ is needed for creating vGPU devices.
 
 .. _configure-worker-nodes-for-gpu-operator-components:
@@ -50,16 +50,16 @@ Node A receives the following software components:
 
 Node B receives the following software components:
 
-* ``VFIO Manager`` - Optional. To load vfio-pci and bind it to all GPUs on the node.
-* ``Sandbox Device Plugin`` - Optional. To discover and advertise the passthrough GPUs to the kubelet.
-* ``Sandbox Validator`` -Optional. Validates that Sandbox Device Plugin is working.
+* ``VFIO Manager`` - To load vfio-pci and bind it to all GPUs on the node. Required for the GPU Operator approach. Not needed if using the `Red Hat OpenShift Virtualization PCI passthrough configuration <https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html-single/virtualization/index#virt-configuring-pci-passthrough>`_ instead, which is tested by OpenShift Virtualization.
+* ``Sandbox Device Plugin`` - To discover and advertise the passthrough GPUs to the kubelet. Required for the GPU Operator approach. Not needed if using the `Red Hat OpenShift Virtualization PCI passthrough configuration <https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html-single/virtualization/index#virt-configuring-pci-passthrough>`_ instead, which is tested by OpenShift Virtualization.
+* ``Sandbox Validator`` - Validates that Sandbox Device Plugin is working. Required for the GPU Operator approach. Not needed if using the `Red Hat OpenShift Virtualization PCI passthrough configuration <https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html-single/virtualization/index#virt-configuring-pci-passthrough>`_ instead, which is tested by OpenShift Virtualization.
 
 Node C receives the following software components:
 
 * ``NVIDIA vGPU Manager`` - To install the driver.
 * ``NVIDIA vGPU Device Manager`` - To create vGPU devices on the node.
-* ``Sandbox Device Plugin`` -Optional. To discover and advertise the vGPU devices to kubelet.
-* ``Sandbox Validator`` -Optional. Validates that Sandbox Device Plugin is working.
+* ``Sandbox Device Plugin`` - To discover and advertise the vGPU devices to kubelet. Required for the GPU Operator approach. Not needed if using the `Red Hat OpenShift Virtualization vGPU configuration <https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html-single/virtualization/index#virt-configuring-virtual-gpus>`_ instead, which is tested by OpenShift Virtualization.
+* ``Sandbox Validator`` - Validates that Sandbox Device Plugin is working. Required for the GPU Operator approach. Not needed if using the `Red Hat OpenShift Virtualization vGPU configuration <https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html-single/virtualization/index#virt-configuring-virtual-gpus>`_ instead, which is tested by OpenShift Virtualization.
 
 
 Assumptions, constraints, and dependencies
@@ -113,11 +113,22 @@ After configuring the :ref:`prerequisites<prerequisites>`, the high level workfl
 
 If you are planning to deploy VMs with vGPU, the workflow is as follows:
    * :ref:`Build the NVIDIA vGPU Manager image <build-vgpu-manager-image>`, before installing the GPU Operator.
+   * Ensure that ``sandboxWorkloads.enabled`` is set to ``true`` in the cluster policy.
+   * Enable and configure NVIDIA vGPU Manager in the cluster policy.
+   * Enable NVIDIA vGPU Device Manager in the cluster policy.
+   * Enable Sandbox Device Plugin in the cluster policy.
+   * Label the nodes with ``nvidia.com/gpu.workload.config=vm-vgpu``.
    * :ref:`Label the node for the vGPU configuration <vgpu-device-configuration>`
    * :ref:`Add vGPU resources to the HyperConverged Custom Resource <add-vgpu-resources-to-the-hyperconverged-custom-resource>`
    * :ref:`Create a virtual machine with vGPU <create-a-virtual-machine-with-gpu>`
 
 If you are planning to deploy VMs with GPU passthrough, the workflow is as follows:
+   * Ensure that ``sandboxWorkloads.enabled`` is set to ``true`` in the cluster policy.
+   * Ensure that ``sandboxDevicePlugin.enabled`` is set to ``true`` in the cluster policy.
+   * Ensure that ``vfioManager.enabled`` is set to ``true`` in the cluster policy.
+   * Optionally, set ``sandboxWorkloads.defaultWorkload`` to ``vm-passthrough`` in the cluster policy if you want passthrough to be the default mode.
+   * Label the virtualization worker nodes with ``nvidia.com/gpu.workload.config=vm-passthrough``, unless it is set as the default mode.
+   * The nodes will be automatically labeled with ``nvidia.com/gpu.deploy.sandbox-device-plugin=true`` and ``nvidia.com/gpu.deploy.vfio-manager=true``.
    * :ref:`Add GPU resources to the HyperConverged Custom Resource <add-gpu-resources-to-the-hyperconverged-custom-resource>`.
    * :ref:`Create a virtual machine with GPU passthrough <create-a-virtual-machine-with-gpu>`
 
@@ -246,7 +257,7 @@ Use the following steps to build the vGPU Manager container and push it to a pri
 
    .. code-block:: console
 
-      $ export PRIVATE_REGISTRY=my/private/registry VERSION=510.73.06 OS_TAG=rhcos4.11 
+      $ export PRIVATE_REGISTRY=my/private/registry VERSION=510.73.06 OS_TAG=rhcos4.11
 
 .. note::
 
@@ -330,15 +341,21 @@ Create the cluster policy using the CLI:
 
 #. Modify the ``clusterpolicy.json`` file as follows:
 
-   * sandboxWorloads.enabled=true
-   * vgpuManager.enabled=true
-   * vgpuManager.repository=<path to private repository>
-   * vgpuManager.image=vgpu-manager
-   * vgpuManager.version=<driver version>
-   * vgpuManager.imagePullSecrets={<name of image pull secret>}
-   
+   * sandboxWorkloads.enabled=true
+   * For GPU passthrough:
+      * sandboxDevicePlugin.enabled=true
+      * vfioManager.enabled=true
+      * Optionally, sandboxWorkloads.defaultWorkload=vm-passthrough (if you want passthrough to be the default mode)
+   * For vGPU:
+      * vgpuManager.enabled=true
+      * vgpuManager.repository=<path to private repository>
+      * vgpuManager.image=vgpu-manager
+      * vgpuManager.version=<driver version>
+      * vgpuManager.imagePullSecrets={<name of image pull secret>}
+      * vgpuDeviceManager.enabled=true
+      * sandboxDevicePlugin.enabled=true
 
-   The ``vgpuManager`` options are only required if you want to use the NVIDIA vGPU. If you are only using GPU passthrough, these options should not be set.
+   The ``vgpuManager`` and ``vgpuDeviceManager`` options are only required if you want to use the NVIDIA vGPU. If you are only using GPU passthrough, these options should not be set.
 
    In general, the flag ``sandboxWorkloads.enabled`` in ``ClusterPolicy`` controls whether the GPU Operator can provision GPU worker nodes for virtual machine workloads, in addition to container workloads. This flag is disabled by default, meaning all nodes get provisioned with the same software which enables container workloads, and the ``nvidia.com/gpu.workload.config`` node label is not used.
 
@@ -365,7 +382,7 @@ Creating a ClusterPolicy for the GPU Operator using the OpenShift Container Plat
 
 As a cluster administrator, you can create a ClusterPolicy using the OpenShift Container Platform web console.
 
-#. Navigate to **Operators** > **Installed Operators** and find your installed NVIDIA GPU Operator. 
+#. Navigate to **Operators** > **Installed Operators** and find your installed NVIDIA GPU Operator.
 
 #. Under *Provided APIs*, click **ClusterPolicy**.
 
@@ -388,14 +405,25 @@ As a cluster administrator, you can create a ClusterPolicy using the OpenShift C
 
    .. image:: graphics/cluster_policy_enable_sandbox_workloads.png
 
-#. If you are planning to use NVIDIA vGPU, expand the **NVIDIA vGPU Manager config** section and fill in your desired configuration settings, including:
+#. Configure additional components based on your use case:
 
-   * Select the **enabled** checkbox to enable the NVIDIA vGPU Manager.
-   * Add your **imagePullSecrets**.
-   * Under *driverManager*, fill in **repository** with the path to your private repository.
-   * Under *env*, fill in **image** with ``vgpu-manager`` and the **version** with your driver version. 
+   **For GPU passthrough:**
 
-   If you are only using GPU passthrough, you dont need to fill this section out.
+   * Expand the **Sandbox Device Plugin config** section and select the **enabled** checkbox.
+   * Expand the **VFIO Manager config** section and select the **enabled** checkbox.
+   * Optionally, in the **Sandbox Workloads config** section, set **defaultWorkload** to ``vm-passthrough`` if you want passthrough to be the default mode.
+
+   **For NVIDIA vGPU:**
+
+   * Expand the **NVIDIA vGPU Manager config** section and fill in your desired configuration settings, including:
+
+     * Select the **enabled** checkbox to enable the NVIDIA vGPU Manager.
+     * Add your **imagePullSecrets**.
+     * Under *driverManager*, fill in **repository** with the path to your private repository.
+     * Under *env*, fill in **image** with ``vgpu-manager`` and the **version** with your driver version.
+
+   * Expand the **NVIDIA vGPU Device Manager config** section and select the **enabled** checkbox.
+   * Expand the **Sandbox Device Plugin config** section and select the **enabled** checkbox.
 
    .. image:: graphics/cluster_policy_configure_vgpu.png
 
@@ -582,7 +610,7 @@ Procedure
    Example for vGPU:
 
    .. code-block:: yaml
-      
+
       apiVersion: kubevirt.io/v1alpha3
       kind: VirtualMachineInstance
       ...
